@@ -1,3 +1,4 @@
+var ObjectId = require('mongodb').ObjectId;
 function JogoDAO(connection) {
     this._connection = connection();
 }
@@ -41,7 +42,7 @@ JogoDAO.prototype.acao = function (acao) {
             var date = new Date();
             var tempo = null;
 
-            switch (acao.acao) {
+            switch (parseInt(acao.acao)) {
                 case 1:
                     tempo = 1 * 60 * 60000;
                     break;
@@ -58,24 +59,72 @@ JogoDAO.prototype.acao = function (acao) {
 
             acao.acao_termina_em = date.getTime() + tempo;
             collection.insert(acao);
-            
+
+        });
+
+        mongoClient.collection("jogo", function (err, collection) {
+
+            var moedas = null;
+
+            switch (parseInt(acao.acao)) {
+                case 1:
+                    moedas = -2 * acao.quantidade;
+                    break;
+                case 2:
+                    moedas = -3 * acao.quantidade;
+                    break;
+                case 3:
+                    moedas = -1 * acao.quantidade;
+                    break;
+                case 4:
+                    moedas = -1 * acao.quantidade;
+                    break;
+            }
+
+            collection.update(
+                { usuario: acao.usuario },
+                { $inc: {moeda: moedas}}
+            );
+
             mongoClient.close();
         });
     });
 };
 
-JogoDAO.prototype.getAcoes = function(usuario, callback) {
+JogoDAO.prototype.getAcoes = function (usuario, callback) {
 
     this._connection.open(function (err, mongoClient) {
         mongoClient.collection("acao", function (err, collection) {
-            collection.find({ usuario: usuario }).toArray(function (err, result) {
 
-                callback(result);
+            var date = new Date();
+            var agora = date.getTime();
 
-            });
+            collection.find({ $and: [{ usuario: usuario }, { acao_termina_em: { $gt: agora } }] })
+                .toArray(function (err, result) {
+
+                    callback(result);
+
+                });
             mongoClient.close();
         });
     });
+};
+
+JogoDAO.prototype.remover_acao = function(_id, callback){
+    this._connection.open(function (err, mongoClient) {
+        
+        mongoClient.collection("acao", function (err, collection) {
+            
+            collection.remove(
+                {_id: ObjectId(_id)},
+                function(err, result){
+
+                    callback(err, result);
+                }
+            );
+            mongoClient.close();
+        });
+    });  
 };
 
 module.exports = function () {
